@@ -364,18 +364,32 @@ int ObExprAIRerank::batch_result_add_base(ObIAllocator &allocator, ObJsonArray *
   INIT_SUCC(ret);
   int64_t count = array->element_count();
   ObString index_key(INDEX_KEY);
+  bool *seen = static_cast<bool *>(allocator.alloc(sizeof(bool) * count));
+  if (count <= 0) {
+    ret = OB_INVALID_DATA;
+  } else if (OB_ISNULL(seen)) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+  } else {
+    MEMSET(seen, 0, sizeof(bool) * count);
+  }
   for (int64_t i = 0; OB_SUCC(ret) && i < count; i++) {
-    ObJsonObject *obj = static_cast<ObJsonObject *>(array->get_value(i));
-    if (OB_ISNULL(obj)) {
-      ret = OB_ERR_UNEXPECTED;
+    ObJsonNode *node = array->get_value(i);
+    if (OB_ISNULL(node) || node->json_type() != ObJsonNodeType::J_OBJECT) {
+      ret = OB_INVALID_DATA;
     } else {
+      ObJsonObject *obj = static_cast<ObJsonObject *>(node);
       ObJsonNode *index_node = obj->get_value(index_key);
       if (OB_ISNULL(index_node) || index_node->json_type() != ObJsonNodeType::J_INT) {
         ret = OB_INVALID_DATA;
       } else {
         ObJsonInt *int_obj = static_cast<ObJsonInt *>(index_node);
-        int64_t id = int_obj->value() + start_idx;
-        int_obj->set_value(id);
+        const int64_t local_index = int_obj->value();
+        if (local_index < 0 || local_index >= count || seen[local_index]) {
+          ret = OB_INVALID_DATA;
+        } else {
+          seen[local_index] = true;
+          int_obj->set_value(local_index + start_idx);
+        }
       }
     }
   }
