@@ -255,10 +255,15 @@ int ObOpenAIUtils::ObOpenAIEmbed::parse_output(common::ObIAllocator &allocator,
           ObJsonNode *embedding = embedding_obj->get_value("embedding");
           ObJsonNode *index_node = embedding_obj->get_value("index");
           if (OB_ISNULL(embedding) || embedding->json_type() != ObJsonNodeType::J_ARRAY
-              || OB_ISNULL(index_node) || !index_node->is_number()) {
+              || OB_ISNULL(index_node)
+              || (index_node->json_type() != ObJsonNodeType::J_INT
+                  && index_node->json_type() != ObJsonNodeType::J_UINT)) {
             ret = OB_INVALID_DATA;
           } else {
-            const int64_t index = index_node->get_int();
+            const int64_t index = index_node->json_type() == ObJsonNodeType::J_INT
+                ? index_node->get_int()
+                : (index_node->get_uint() <= INT64_MAX
+                   ? static_cast<int64_t>(index_node->get_uint()) : -1);
             if (index < 0 || index >= count || seen[index]) {
               ret = OB_INVALID_DATA;
             } else {
